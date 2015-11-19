@@ -39,6 +39,8 @@
 //#include "interest-table.hpp"
 #include "diff-state-container.hpp"
 
+#include "ns3/ndnSIM-module.h"
+
 namespace chronosync {
 
 /**
@@ -225,7 +227,7 @@ private:
   /**
    * @brief Callback to handle Data/Sync Interest
    *
-   * This method checks whether an incoming interest is a Data or Sync Interest 
+   * This method checks whether an incoming interest is a Data or Sync Interest
    * and dispatches the incoming interest to corresponding processing methods.
    *
    * @param prefix   The prefix of the sync group.
@@ -267,7 +269,7 @@ private:
    *
    * This method does nothing for now.
    *
-   * @param prefix The reco prefix. 
+   * @param prefix The reco prefix.
    * @param msg    The error message.
    */
   void
@@ -276,7 +278,7 @@ private:
 
 
   /**
-   * @brief Callback to handle Data 
+   * @brief Callback to handle Data
    *
    * This method calls validator to validate Data.
    * For now, validation is disabled, Logic::onDataValidated is called
@@ -290,7 +292,7 @@ private:
 
 
   /**
-   * @brief Callback to handle Sync Data 
+   * @brief Callback to handle Sync Data
    *
    * This method does nothing. Not implemented replys to SyncData
    *
@@ -338,7 +340,7 @@ private:
   void
   onRecoInterestTimeout(const Interest& interest);
 
-  
+
   /**
    * @brief Callback to handle Sync Interest timeout.
    *
@@ -408,7 +410,7 @@ private:
 
   /**
    * @brief Updates m_currentRound to newCurrentRound and sends Data Interests
-   *                     
+   *
    * This method sends a new Data Interest from m_currentRound to the
    * newCurrentRound in order to get all produced data in these rounds.
    * Updates m_currentRound to newCurrentRound.
@@ -416,30 +418,30 @@ private:
    * @param newCurrentRound      The new current round
    *
    */
-  void 
+  void
   moveToNewCurrentRound (RoundNo newCurrentRound);
-  
+
 
   /**
-   * @brief Updates m_currentRound to newCurrentRound 
-   *                     
+   * @brief Updates m_currentRound to newCurrentRound
+   *
    * This method sends a Data Interest in newCurrentRound and
    * updates m_currentRound to newCurrentRound
    *
    * @param newCurrentRound      The new current round
    *
    */
-  void 
+  void
   moveToNewCurrentRoundAfterRecovery (RoundNo newCurrentRound);
 
 
   /**
    * @brief  Called periodically, updates m_stableRound if possible
-   *                     
+   *
    *
    *
    */
-  void 
+  void
   setStableState ();
 
 
@@ -447,7 +449,7 @@ private:
    * @brief              Updates m_oldState: it will contain new stable state
    *                     Updates all cumulativeDigests from initRound to m_stabilizingRound
    *
-   * From initRound to endRound, add m_log to m_oldState and calculates 
+   * From initRound to endRound, add m_log to m_oldState and calculates
    * cumulativeDigests for these rounds
    *
    */
@@ -456,11 +458,11 @@ private:
 
 
   /**
-   * @brief              Performs fishing in roundNo if roundDigest != the one 
+   * @brief              Performs fishing in roundNo if roundDigest != the one
    *                     in rounds log
    *
    *
-   * @param roundNo      The round # where to check if fishing needed 
+   * @param roundNo      The round # where to check if fishing needed
    *
    * @param roundDigest  round digest of remote peer for roundNo
    *
@@ -472,7 +474,7 @@ private:
 
   /**
    * @brief produce Data which content is only the cumulative digest in a round. Update diffLog.
-   *        
+   *
    *
    * @param roundNo      	The round number
    *
@@ -499,7 +501,7 @@ private:
 
 
   /**
-   * @brief compare the received cumulative digest with local one to check if recovery is required. 
+   * @brief compare the received cumulative digest with local one to check if recovery is required.
    *
    *
    * @param userPrefix         	The userPrefix which sent the cumulativeDigest
@@ -510,8 +512,8 @@ private:
    *
    */
   void
-  checkRecovery(ndn::Name userPrefix, 
-                RoundNo roundNoOfCumulativeDigest, 
+  checkRecovery(ndn::Name userPrefix,
+                RoundNo roundNoOfCumulativeDigest,
                 ndn::ConstBufferPtr cumulativeDigest);
 
 
@@ -522,7 +524,7 @@ private:
    * @param userPrefix         	The Recovery Interest will be sent to userPrefix
    *
    */
- 
+
   void
   sendRecoInterest(ndn::Name userPrefix);
 
@@ -532,11 +534,11 @@ private:
    *
    * This method extracts the digest from the incoming Sync Interest,
    * compares it against current local digest, and process the Sync
-   * Interest according to the comparison result.  
+   * Interest according to the comparison result.
    *
    * @param interest          The incoming interest
    */
-  
+
   void
   processSyncInterest(const shared_ptr<const Interest>& interest);
 
@@ -580,7 +582,7 @@ private:
    * @param dataBlock The content of the Data
    *
    */
- 
+
   void
   processRecoData(const Name& fullName,
                   const Block& recoBlock);
@@ -590,7 +592,7 @@ private:
    * @brief Insert state diff into log
    *
    * @param diff         The diff.
-   * @param roundNo      The round to update / insert 
+   * @param roundNo      The round to update / insert
    */
   void
   updateDiffLog(DiffStatePtr commit, const RoundNo roundNo);
@@ -622,20 +624,20 @@ private:
   void
   sendSyncInterest(RoundNo roundNo);
 
-  
-  /// @brief Helper method to send Data 
+
+  /// @brief Helper method to send Data
   void
-  sendData(const Name& nodePrefix, 
-               const Name& name, 
+  sendData(const Name& nodePrefix,
+               const Name& name,
                DiffStatePtr diffState);
 
 
   /// @brief Helper method to send Reco Data
   void
-  sendRecoData(const Name& nodePrefix, 
+  sendRecoData(const Name& nodePrefix,
                const Name& name);
 
-  
+
   void
   printDigest(ndn::ConstBufferPtr digest, std::string name = "digest");
 
@@ -687,23 +689,23 @@ private:
   shared_ptr<const Interest> m_pendingDataInterest;
 
   // The greatest round in which we are waiting Data
-  RoundNo m_currentRound;  
+  RoundNo m_currentRound;
 
-  // Candidate round to be stable. 
-  // It will be stable if no Data for rounds <= m_stabilizingRoung are received 
+  // Candidate round to be stable.
+  // It will be stable if no Data for rounds <= m_stabilizingRoung are received
   // during the period : DEFAULT_STABILIZE_CUMULATIVE_DIGEST_DELAY
-  RoundNo m_stabilizingRound;   
+  RoundNo m_stabilizingRound;
 
   // Any round <= m_stableRound has cumulative digest and should no receive
   // any data because these rounds are old. If received it would provoke a recovery
-  RoundNo m_stableRound;	
+  RoundNo m_stableRound;
 
   // Last round in which we received a Recovery Data
   // Any round <= m_lastRecoveryRound could contain erroneous cumulative digests.
-  RoundNo m_lastRecoveryRound;  
+  RoundNo m_lastRecoveryRound;
 
   // If a Data Interest is received for a round >>> my_currentRound, recovery will
-  // be required. 
+  // be required.
   bool m_recoveryDesired;
 
 
@@ -736,7 +738,7 @@ private:
 
   // Security
   ndn::Name m_defaultSigningId;
-  ndn::KeyChain m_keyChain;
+  ndn::KeyChain& m_keyChain;
   ndn::shared_ptr<ndn::Validator> m_validator;
 
   unsigned m_numberDataInterestTimeouts;

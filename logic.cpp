@@ -91,8 +91,8 @@ const ndn::name::Component Logic::DATA_INTEREST_COMPONENT("DATA");
 const ndn::name::Component Logic::SYNC_INTEREST_COMPONENT("SYNC");
 const ndn::name::Component Logic::RECO_INTEREST_COMPONENT("RECO");
 
-// Delay to send Sync Interest (with the round digest), once 
-// a Data for a round is received. 
+// Delay to send Sync Interest (with the round digest), once
+// a Data for a round is received.
 const time::milliseconds Logic::DEFAULT_ROUND_DIGEST_DELAY(1000);
 
 // Delay to stabilize cumulative digests from the m_stableRound to
@@ -107,20 +107,20 @@ const uint64_t Logic::MAX_ROUNDS_WITHOUT_RECOVERY (10);
 // Recovery will be requested.
 const uint64_t Logic::BACK_UNSTABLE_ROUNDS (5);
 
-// If received a cumulative digest of a not stable round, wait 
+// If received a cumulative digest of a not stable round, wait
 // to checkRecovery in the future
 const time::milliseconds Logic::DEFAULT_RETRY_CHECK_RECOVERY_DELAY (2000);
 
 // Schedule sending a CumulativeOnly  with our cumulative
 // digest to inform others. If in the meanwhile another node has
-// sent it, cancel 
+// sent it, cancel
 const int Logic::DEFAULT_DELAY_SENDING_CUMULATIVE_ONLY(1000);
 
 // CumulativeOnlyData are stored in DiffLog using SeqNo=0
 const SeqNo Logic::CUMULATIVE_ONLY_DATA(0);
 
 // When a node does not produce, sends CumulativeOnly to inform others.
-// A node waits MAX_DATA_INTEREST_TO_CUMULATIVE_ONLY Data Timeouts 
+// A node waits MAX_DATA_INTEREST_TO_CUMULATIVE_ONLY Data Timeouts
 // at m_currentRound to send CumulativeOnly
 const int Logic::MAX_DATA_INTEREST_TO_CUMULATIVE_ONLY(5);
 
@@ -160,18 +160,19 @@ Logic::Logic(ndn::Face& face,
   , m_dataFreshness(dataFreshness)
   , m_defaultSigningId(defaultSigningId)
   , m_validator(validator)
+  , m_keyChain(ns3::ndn::StackHelper::getKeyChain())
   , m_numberDataInterestTimeouts(0)
   , m_numberRecoInterestTimeouts(0)
 {
 
 
-#ifndef _DEBUG 
+#ifndef _DEBUG
   std::cerr << "START TIME: " << std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1)  << \
     " " << std::endl;
 #endif
 
 #ifdef _DEBUG
-  
+
   m_instanceId = m_instanceCounter++;
 #endif
 
@@ -208,7 +209,7 @@ Logic::Logic(ndn::Face& face,
   m_reexpressingDataInterestId =
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
                               bind(&Logic::sendDataInterest, this, m_currentRound, 1));
-  
+
   m_stabilizingCumulativeDigest =
     m_scheduler.scheduleEvent(DEFAULT_STABILIZE_CUMULATIVE_DIGEST_DELAY,
                               bind(&Logic::setStableState, this));
@@ -218,12 +219,12 @@ Logic::Logic(ndn::Face& face,
     _LOG_DEBUG_ID("    fault injection activated from 25s to 45s");
     m_scheduler.scheduleEvent(ndn::time::seconds(15),
 			      bind(&startPartition));
-    
+
     m_scheduler.scheduleEvent(ndn::time::seconds(40),
 			      bind(&stopPartition));
-  }  
+  }
 
-  
+
   _LOG_DEBUG_ID("<< Logic::Logic");
 }
 
@@ -259,10 +260,10 @@ Logic::updateSeqNo(const SeqNo& seqNo, const Name &updatePrefix)
   _LOG_DEBUG_ID("    seqNo: " << seqNo << " m_seqNo: " << m_seqNo);
   if (seqNo < m_seqNo || seqNo == 0)
     return;
-  
+
   m_seqNo = seqNo;
   _LOG_DEBUG_ID("    updateSeqNo: m_seqNo " << m_seqNo);
-  
+
   bool isInserted = false;
   bool isUpdated = false;
   SeqNo oldSeq;
@@ -293,14 +294,14 @@ Logic::updateSeqNo(const SeqNo& seqNo, const Name &updatePrefix)
     // Send round digest so everybody knows we have produced new data
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
 			      bind(&Logic::sendSyncInterest, this, m_currentRound));
-    
+
     moveToNewCurrentRound(m_currentRound + 1);
 
 
     syncTimeouts = 0;
 
 
-#ifdef _DEBUG    
+#ifdef _DEBUG
     printRoundLog();
 #endif
   _LOG_DEBUG_ID("<< Logic::updateSeqNo");
@@ -308,7 +309,7 @@ Logic::updateSeqNo(const SeqNo& seqNo, const Name &updatePrefix)
   }
 
 }
-  
+
 ConstBufferPtr
 Logic::getRootDigest() const
 {
@@ -442,7 +443,7 @@ Logic::onRecoInterest(const Name& prefix, const Interest& interest)
   }
 
   if (RECO_INTEREST_COMPONENT == name.get(-1)){
-    processRecoInterest(interest.shared_from_this());    
+    processRecoInterest(interest.shared_from_this());
   }
 
   _LOG_DEBUG_ID("<< Logic::onRecoInterest");
@@ -466,23 +467,23 @@ Logic::onRecoInterestTimeout(const Interest& interest)
 
   Name nodePrefix = interest.getName().getPrefix(-1);
   m_numberRecoInterestTimeouts++;
-  if (m_numberRecoInterestTimeouts >= MAX_RECO_INTEREST_TIMEOUTS) { 
+  if (m_numberRecoInterestTimeouts >= MAX_RECO_INTEREST_TIMEOUTS) {
     std::cerr << "onRecoInterestTimeout:: Max rec timeouts to " <<
                nodePrefix ;
     m_numberRecoInterestTimeouts = 0;
-    _LOG_DEBUG_ID("    Removing from m_pendingRecoveryPrefixes: " << 
+    _LOG_DEBUG_ID("    Removing from m_pendingRecoveryPrefixes: " <<
                   nodePrefix);
     m_pendingRecoveryPrefixes.erase(nodePrefix);
 
   } else {
-    _LOG_DEBUG_ID("    Program another send Reco Interest to " << 
+    _LOG_DEBUG_ID("    Program another send Reco Interest to " <<
                   nodePrefix);
 
      m_scheduler.scheduleEvent
    	   (ndn::time::seconds(0),
 	    bind(&Logic::sendRecoInterest, this, nodePrefix));
   }
- 
+
   _LOG_DEBUG_ID("<< Logic::onRecoInterestTimeout");
 
 }
@@ -513,36 +514,36 @@ Logic::onDataInterestTimeout(const Interest& interest, unsigned retries)
 
 
   m_numberDataInterestTimeouts++;
-  if (m_numberDataInterestTimeouts >= MAX_DATA_INTEREST_TO_CUMULATIVE_ONLY && 
+  if (m_numberDataInterestTimeouts >= MAX_DATA_INTEREST_TO_CUMULATIVE_ONLY &&
       m_stableRound == m_currentRound-1) {
-    _LOG_DEBUG_ID("    Program to send my cumulative digest for the round=" 
+    _LOG_DEBUG_ID("    Program to send my cumulative digest for the round="
                   << m_stableRound);
     m_numberDataInterestTimeouts = 0;
-    
+
     ndn::ConstBufferPtr myCumulativeDigest = m_state.getDigest();
-    
-    ndn::EventId eventId =   
-      m_scheduler.scheduleEvent 
+
+    ndn::EventId eventId =
+      m_scheduler.scheduleEvent
       (ndn::time::milliseconds(m_cumulativeOnlyRandom()),
-       bind(&Logic::produceCumulativeOnly, 
-	    this, 
-	    m_stableRound, 
+       bind(&Logic::produceCumulativeOnly,
+	    this,
+	    m_stableRound,
 	    myCumulativeDigest));
-    
+
     m_cumulativeDigestToEventId.insert
-      (std::pair<ndn::Buffer, 
+      (std::pair<ndn::Buffer,
        ndn::EventId>(*myCumulativeDigest, eventId));
   }
-  
+
   // Retry if interest is being sent in a round < m_currentRound.
   DiffStateContainer::iterator stateIter = m_log.find(roundNo);
-  if (roundNo < m_currentRound 
+  if (roundNo < m_currentRound
       && stateIter == m_log.end()
       && retries < MAX_DATA_INTEREST_TIMEOUTS) {
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
 			      bind(&Logic::sendDataInterest, this, roundNo, ++retries));
   }
-  
+
   _LOG_DEBUG_ID("<< Logic::onDataInterestTimeout");
 }
 
@@ -622,7 +623,7 @@ Logic::processDataInterest(const shared_ptr<const Interest>& interest)
     moveToNewCurrentRound(roundNo);
   }
   else if (roundNo < m_currentRound)  {
-    // If we have something for that round, send it to him. 
+    // If we have something for that round, send it to him.
     DiffStateContainer::iterator stateIter = m_log.find(roundNo);
     if (stateIter != m_log.end()) {
 
@@ -634,7 +635,7 @@ Logic::processDataInterest(const shared_ptr<const Interest>& interest)
       DiffStatePtr diffState = (*stateIter)->getStateFrom(m_sessionName, isCumulativeOnly);
       if (diffState != NULL) {
         _LOG_DEBUG_ID("    We have something for requested round");
-#ifdef _DEBUG      
+#ifdef _DEBUG
         printState(std::cerr, *(diffState->getState()));
 #endif
 
@@ -648,20 +649,20 @@ Logic::processDataInterest(const shared_ptr<const Interest>& interest)
           else
             throw Error("Can't find cumulative in dataForCumulativeOnly");
         }
-        else { 
+        else {
           sendData(m_defaultUserPrefix, name, diffState);
 	}
       }
-      else 
+      else
         _LOG_DEBUG_ID("    We have NOTHING for requested round");
     }
   }
-  
+
   _LOG_DEBUG_ID("<< Logic::processDataInterest");
 }
 
 
-void 
+void
 Logic::moveToNewCurrentRound (RoundNo newCurrentRound)
 {
   _LOG_DEBUG_ID(">> Logic::moveToNewCurrentRound");
@@ -680,17 +681,17 @@ Logic::moveToNewCurrentRound (RoundNo newCurrentRound)
     // is retrieved, Recovery will be launched
 
 
-    std::cerr << "Jump to a far away from " 
+    std::cerr << "Jump to a far away from "
               <<  m_currentRound
-              << "to " 
+              << "to "
               << newCurrentRound
-              << ", so DON't fish, await recovery" 
+              << ", so DON't fish, await recovery"
               << std::endl;
 
     m_recoveryDesired = true;
-  }  
+  }
 
-  
+
   // Move to newCurrentRound
   _LOG_DEBUG_ID("   moving from round m_currentRound: " << m_currentRound << " to " << newCurrentRound);
   m_currentRound = newCurrentRound;
@@ -703,10 +704,10 @@ Logic::moveToNewCurrentRound (RoundNo newCurrentRound)
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
                               bind(&Logic::sendDataInterest, this, m_currentRound, 1));
 
-  _LOG_DEBUG_ID("<< Logic::moveToNewCurrentRound");  
+  _LOG_DEBUG_ID("<< Logic::moveToNewCurrentRound");
 }
 
-void 
+void
 Logic::moveToNewCurrentRoundAfterRecovery (RoundNo newCurrentRound)
 {
   _LOG_DEBUG_ID(">> Logic::moveToNewCurrentRoundAfterRecovery");
@@ -721,16 +722,16 @@ Logic::moveToNewCurrentRoundAfterRecovery (RoundNo newCurrentRound)
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
                               bind(&Logic::sendDataInterest, this, m_currentRound, 1));
 
-  _LOG_DEBUG_ID("<< Logic::moveToNewCurrentRoundAfterRecovery");  
+  _LOG_DEBUG_ID("<< Logic::moveToNewCurrentRoundAfterRecovery");
 
 }
 
 
-void 
+void
 Logic::setStableState ()
 {
 
-  _LOG_DEBUG_ID(">> Logic::setStableState");  
+  _LOG_DEBUG_ID(">> Logic::setStableState");
 
   RoundNo initRound;
 
@@ -747,45 +748,45 @@ Logic::setStableState ()
       // Stabilization from the next to last stable round
       initRound = m_stableRound +1;
   }
-  else 
+  else
     throw Error ("Unable to stabilize cumulative digests in Logic::setStableState.");
 
   // From initRound to m_stabilizingRound:
-  // Add m_log changes to m_oldState and calculate cumulative digests for these rounds 
+  // Add m_log changes to m_oldState and calculate cumulative digests for these rounds
   calculateStableStateAndCumulativeDigests(initRound, m_stabilizingRound);
 
-  
+
   m_stableRound = m_stabilizingRound;
 
   m_stabilizingRound = m_stableRound + (m_currentRound - m_stableRound)/2;
 
-  _LOG_DEBUG_ID("    new stableRound      = " << m_stableRound);  
-  _LOG_DEBUG_ID("    new stabilizingRound = " << m_stabilizingRound);  
-  _LOG_DEBUG_ID("    current round: = " << m_currentRound);  
-  
+  _LOG_DEBUG_ID("    new stableRound      = " << m_stableRound);
+  _LOG_DEBUG_ID("    new stabilizingRound = " << m_stabilizingRound);
+  _LOG_DEBUG_ID("    current round: = " << m_currentRound);
+
   m_stabilizingCumulativeDigest =
     m_scheduler.scheduleEvent(DEFAULT_STABILIZE_CUMULATIVE_DIGEST_DELAY,
                               bind(&Logic::setStableState, this));
-  
-  _LOG_DEBUG_ID("<< Logic::setStableState");  
+
+  _LOG_DEBUG_ID("<< Logic::setStableState");
 }
 
-void 
+void
 Logic::calculateStableStateAndCumulativeDigests (RoundNo initRound, RoundNo endRound)
 {
-  _LOG_DEBUG_ID(">> Logic::calculateStableStateAndCumulativeDigests");  
+  _LOG_DEBUG_ID(">> Logic::calculateStableStateAndCumulativeDigests");
 
   DiffStateContainer::iterator stateIter = m_log.find(initRound);
   RoundNo r = initRound;
   while (stateIter == m_log.end() && r < endRound) {
-    _LOG_DEBUG_ID("      We dont have anything for the first round, go next one"); 
+    _LOG_DEBUG_ID("      We dont have anything for the first round, go next one");
     r++;
     stateIter = m_log.find(r);
   }
 
   while ((stateIter != m_log.end() &&
          (*stateIter)->getRound() < endRound)) {
-    _LOG_DEBUG_ID("      Adding state of round = " << (*stateIter)->getRound()); 
+    _LOG_DEBUG_ID("      Adding state of round = " << (*stateIter)->getRound());
     m_oldState += *((*stateIter)->getState());
     (*stateIter)->setCumulativeDigest(m_oldState.getDigest());
     ++stateIter;
@@ -801,14 +802,14 @@ Logic::calculateStableStateAndCumulativeDigests (RoundNo initRound, RoundNo endR
     commit = *stateIter;
     m_oldState += *(commit->getState());
   }
-  _LOG_DEBUG_ID("      Added stable state of round = " << endRound); 
+  _LOG_DEBUG_ID("      Added stable state of round = " << endRound);
   commit->setCumulativeDigest(m_oldState.getDigest());
 
-  _LOG_DEBUG_ID("      Print stable state"); 
+  _LOG_DEBUG_ID("      Print stable state");
   printState(std::cerr, m_oldState);
   printDigest(commit->getCumulativeDigest(), "cumulative digest of m_oldState");
 
-  _LOG_DEBUG_ID("<< Logic::calculateStableStateAndCumulativeDigests");  
+  _LOG_DEBUG_ID("<< Logic::calculateStableStateAndCumulativeDigests");
 }
 
 
@@ -823,8 +824,8 @@ Logic::checkRoundDigests (RoundNo roundNo, const ConstBufferPtr roundDigest)
   // Someone is sending digest interests in a previous round
 
   DiffStateContainer::iterator stateIter = m_log.find(roundNo);
-    
-    
+
+
   if (stateIter != m_log.end()) {
     // We have data in round log for roundNo
     ConstBufferPtr rd = (*stateIter)->getRoundDigest();
@@ -832,13 +833,13 @@ Logic::checkRoundDigests (RoundNo roundNo, const ConstBufferPtr roundDigest)
     _LOG_DEBUG("    Comparing round digest in round=" << roundNo);
     printDigest(roundDigest, "received round digest");
     printDigest(rd, "my round digest");
-    
+
     if (ndn::name::Component(roundDigest) != ndn::name::Component(rd)) {
       _LOG_DEBUG_ID("    != round digests for round " << roundNo << ", go FISHING");
       // Perhaps we are missing something in roundNo, so go fishing there
       m_scheduler.scheduleEvent(ndn::time::seconds(0),
                                 bind(&Logic::sendDataInterest, this, roundNo, 1));
-      
+
       // Send round digest in the future to inform of our final round digest
       // in this round
       _LOG_DEBUG_ID("    Program sending my Round Digest in round=" << roundNo);
@@ -861,13 +862,13 @@ Logic::checkRoundDigests (RoundNo roundNo, const ConstBufferPtr roundDigest)
     m_scheduler.scheduleEvent(ndn::time::seconds(0),
                               bind(&Logic::sendDataInterest, this, roundNo, 1));
   }
-  
+
   _LOG_DEBUG_ID("<< Logic::checkRoundDigests");
 
   return areEqual;
 }
 
-  
+
 
 
 void
@@ -922,9 +923,9 @@ Logic::sendCumulativeOnly(ndn::Name name, RoundNo roundNo, ndn::ConstBufferPtr c
     m_keyChain.sign(*cumulativeOnlyData);
   else
     m_keyChain.signByIdentity(*cumulativeOnlyData, m_defaultSigningId);
-  
+
   // Update exclude filter in commit
-  _LOG_DEBUG_ID("    Update exclude filter with: " << 
+  _LOG_DEBUG_ID("    Update exclude filter with: " <<
                 cumulativeOnlyData->getFullName().get(-1));
 
   DiffStateContainer::iterator stateIter = m_log.find(roundNo);
@@ -971,16 +972,16 @@ Logic::sendRecoInterest(ndn::Name userPrefix){
   m_face.expressInterest(interest,
                          bind(&Logic::onRecoData, this, _1, _2),
                          bind(&Logic::onRecoInterestTimeout, this, _1));
-  
 
-  
+
+
   _LOG_DEBUG_ID("    Send recovery interest: " << interest.getName());
   _LOG_DEBUG_ID("<< Logic::sendRecoInterest");
 }
 
 void
-Logic::checkRecovery(ndn::Name userPrefix, 
-                     RoundNo roundNoOfCumulativeDigest, 
+Logic::checkRecovery(ndn::Name userPrefix,
+                     RoundNo roundNoOfCumulativeDigest,
                      ndn::ConstBufferPtr cumulativeDigest) {
 
   _LOG_DEBUG_ID(">> Logic::checkRecovery");
@@ -1001,11 +1002,11 @@ Logic::checkRecovery(ndn::Name userPrefix,
     _LOG_DEBUG_ID("<< Logic::checkRecovery");
     return;
   }
-  
+
 
   ndn::ConstBufferPtr myCumulativeDigest;
   bool doRecovery = true;
-  
+
   // Check when doRecovery is not required
   if (roundNoOfCumulativeDigest < m_lastRecoveryRound || m_stableRound == 0) {
     // We don't have cumulative digests calculated to compare with the
@@ -1013,7 +1014,7 @@ Logic::checkRecovery(ndn::Name userPrefix,
     _LOG_DEBUG_ID("    Received cumulative in round=" << roundNoOfCumulativeDigest << " my stableRound="  <<
                   m_stableRound << "  my_lasteRecoveryRound=" << m_lastRecoveryRound << " DO NOT RECOVERY");
     doRecovery = false;
-  } 
+  }
   else if (roundNoOfCumulativeDigest <= m_stableRound) {
     // Compare with my cumulative for that round
     DiffStateContainer::iterator stateIter = m_log.find(roundNoOfCumulativeDigest);
@@ -1027,20 +1028,20 @@ Logic::checkRecovery(ndn::Name userPrefix,
                   m_stableRound << ": same cumulative digest. DO NOT RECOVERY");
   	doRecovery = false;
       }
-    } 
-  } 
+    }
+  }
   else if (!m_recoveryDesired) {
     // round > stableRound, will compare with my cumulative in the future
     doRecovery = false;
-    _LOG_DEBUG_ID("    Received cumulative in round=" 
-		  << roundNoOfCumulativeDigest 
-		  << " my stableRound="  
-		  << m_stableRound 
+    _LOG_DEBUG_ID("    Received cumulative in round="
+		  << roundNoOfCumulativeDigest
+		  << " my stableRound="
+		  << m_stableRound
 		  << " program checkRecovery in the future to wait stabilization of that round. DO NOT RECOVERY");
     m_scheduler.scheduleEvent(DEFAULT_RETRY_CHECK_RECOVERY_DELAY,
     			      bind(&Logic::checkRecovery, this, userPrefix, roundNoOfCumulativeDigest, cumulativeDigest));
   }
-  
+
   if (doRecovery) {
     // Send Recovery interest
     if (m_recoveryDesired)
@@ -1054,7 +1055,7 @@ Logic::checkRecovery(ndn::Name userPrefix,
     _LOG_DEBUG_ID("      m_lastRecoveryRound = " << m_lastRecoveryRound);
     _LOG_DEBUG_ID("      m_stabilizingRound  = " << m_stabilizingRound);
 
-    std::set<ndn::Name>::iterator itPrefix = 
+    std::set<ndn::Name>::iterator itPrefix =
       m_pendingRecoveryPrefixes.find(userPrefix.getPrefix(-1));
     if (itPrefix == m_pendingRecoveryPrefixes.end()){
       m_scheduler.scheduleEvent
@@ -1062,34 +1063,34 @@ Logic::checkRecovery(ndn::Name userPrefix,
 	 bind(&Logic::sendRecoInterest, this, userPrefix.getPrefix(-1)));
 
       _LOG_DEBUG_ID("    inserting in m_pendingRecoveryPrefixes: " << userPrefix.getPrefix(-1));
-      
+
       m_pendingRecoveryPrefixes.insert(userPrefix.getPrefix(-1));
     } else {
       _LOG_DEBUG_ID("    This prefix is already in m_pendingRecoveryPrefixes: " << userPrefix.getPrefix(-1));
     }
-    
+
     m_recoveryDesired = false;
-    
+
     // If we have a cumulative digest in roundNoOfCumulativeDigest,
     // schedule sending a CumulativeOnly  with our cumulative
     // digest to inform others. If in the meanwhile another node has
     // sent it, cancel (in processData)
     if (myCumulativeDigest) {
       _LOG_DEBUG_ID("    Program to send my cumulative digest for the round=" << roundNoOfCumulativeDigest);
-      ndn::EventId eventId=   
-	m_scheduler.scheduleEvent 
+      ndn::EventId eventId=
+	m_scheduler.scheduleEvent
 	(ndn::time::milliseconds(m_cumulativeOnlyRandom()),
-	 bind(&Logic::produceCumulativeOnly, 
-	      this, 
-	      roundNoOfCumulativeDigest, 
+	 bind(&Logic::produceCumulativeOnly,
+	      this,
+	      roundNoOfCumulativeDigest,
 	      myCumulativeDigest));
-      
+
       m_cumulativeDigestToEventId.insert
-  	(std::pair<ndn::Buffer, 
+  	(std::pair<ndn::Buffer,
   	 ndn::EventId>(*myCumulativeDigest, eventId));
     }
 
-  }      
+  }
 
   _LOG_DEBUG_ID("<< Logic::checkRecovery");
 }
@@ -1107,7 +1108,7 @@ Logic::processSyncInterest(const shared_ptr<const Interest>& interest)
   _LOG_DEBUG_ID("    roundNo: " << roundNo);
 
   ConstBufferPtr roundDigest =
-    make_shared<ndn::Buffer>(name.get(-1).value(), 
+    make_shared<ndn::Buffer>(name.get(-1).value(),
                              name.get(-1).value_size());
 
 
@@ -1116,18 +1117,18 @@ Logic::processSyncInterest(const shared_ptr<const Interest>& interest)
     moveToNewCurrentRound(roundNo + 1);
   }
   else if (roundNo <= m_lastRecoveryRound) {
-    // roundNo <= m_lastRecoveryRound is too old, do nothing. 
-    // We don't have reliable round digest after a recovery 
+    // roundNo <= m_lastRecoveryRound is too old, do nothing.
+    // We don't have reliable round digest after a recovery
     _LOG_DEBUG_ID("    RoundNo= " << roundNo << " is less than m_lastRecoveryRound=" <<
                   m_lastRecoveryRound << " DON'T CHECK ROUND DIGEST");
   }
   else {
     checkRoundDigests(roundNo, roundDigest);
   }
-  
+
   _LOG_DEBUG_ID("<< Logic::processSyncInterest");
 }
-  
+
 
 void
 Logic::processRecoInterest(const shared_ptr<const Interest>& interest)
@@ -1144,7 +1145,7 @@ Logic::processRecoInterest(const shared_ptr<const Interest>& interest)
   _LOG_DEBUG_ID("<< Logic::processRecoInterest");
 }
 
-  
+
 void
 Logic::processData(const Name& fullName,
 		   const Block& dataContentBlock)
@@ -1156,7 +1157,7 @@ Logic::processData(const Name& fullName,
   // (explicitly :-)
   RoundNo roundNo = fullName.get(-2).toNumber();
 
-  if (roundNo == m_currentRound) 
+  if (roundNo == m_currentRound)
     syncTimeouts = 0;
 
   _LOG_DEBUG_ID("    roundNo:" << roundNo);
@@ -1185,7 +1186,7 @@ Logic::processData(const Name& fullName,
   // Update exclude filter in commit
   _LOG_DEBUG_ID("    Update exclude filter with: " << fullName.get(-1));
   commit->appendExclude(fullName.get(-1));
-  
+
   try {
     DataContent dataContent;
     dataContent.wireDecode(dataContentBlock);
@@ -1195,7 +1196,7 @@ Logic::processData(const Name& fullName,
     _LOG_DEBUG_ID("    Received Data Type = " << dataType);
 
     if (dataType == tlv::CumulativeOnly) {
-      // Add to commit [dataContent.getUserPrefix(), CUMULATIVE_ONLY_DATA] 
+      // Add to commit [dataContent.getUserPrefix(), CUMULATIVE_ONLY_DATA]
       commit->update(dataContent.getUserPrefix(), CUMULATIVE_ONLY_DATA);
       _LOG_DEBUG_ID("    Data from " << dataContent.getUserPrefix());
     }
@@ -1221,12 +1222,12 @@ Logic::processData(const Name& fullName,
       BOOST_FOREACH(ConstLeafPtr leaf, reply->getLeaves().get<ordered>())
         {
           BOOST_ASSERT(leaf != 0);
-          
+
           const Name& info = leaf->getSessionName();
           SeqNo seq = leaf->getSeq();
 
 	  _LOG_DEBUG_ID("    Received Data from " << info << " " << seq);
-          
+
           bool isInserted = false;
           bool isUpdated = false;
           SeqNo oldSeq;
@@ -1248,16 +1249,16 @@ Logic::processData(const Name& fullName,
           commit->update(info, seq);
 
         }
-      
+
       if (!v.empty()) {
         // call app's callback
         _LOG_DEBUG_ID("    call app's callback with new data");
-        m_onUpdate(v);    
+        m_onUpdate(v);
       }
-      else 
-        _LOG_DEBUG_ID("    don't call app's callback: nothing new");  
+      else
+        _LOG_DEBUG_ID("    don't call app's callback: nothing new");
     }
-    
+
     if (roundNo == m_currentRound)
       // we received data (either DataOnly, CumulativeOnly or
       // DataAndCumulative) for our round, so move to new round
@@ -1288,9 +1289,9 @@ Logic::processData(const Name& fullName,
                                 bind(&Logic::sendSyncInterest, this, roundNo));
     m_scheduler.cancelEvent(commit->getReexpressingSyncInterestId());
     commit->setReexpressingSyncInterestId(eventId);
-    
 
-#ifdef _DEBUG    
+
+#ifdef _DEBUG
     printRoundLog();
 #endif
 
@@ -1302,7 +1303,7 @@ Logic::processData(const Name& fullName,
     return;
   }
 }
-  
+
 void
 Logic::processRecoData(const Name& fullName,
                        const Block& recoBlock)
@@ -1329,10 +1330,10 @@ Logic::processRecoData(const Name& fullName,
     BOOST_FOREACH(ConstLeafPtr leaf, receivedState->getLeaves().get<ordered>())
       {
         BOOST_ASSERT(leaf != 0);
-        
+
         const Name& info = leaf->getSessionName();
         SeqNo seq = leaf->getSeq();
-        
+
         bool isInserted = false;
         bool isUpdated = false;
         SeqNo oldSeq;
@@ -1344,20 +1345,20 @@ Logic::processRecoData(const Name& fullName,
           v.push_back(mdi);
         }
       }
-      
+
       if (!v.empty()) {
         // call app's callback
         _LOG_DEBUG_ID("    call app's callback with new data");
-        printState(std::cerr, m_state);	
-        m_onUpdate(v);    
+        printState(std::cerr, m_state);
+        m_onUpdate(v);
       }
-      else 
-        _LOG_DEBUG_ID("    don't call app's callback: nothing new");  
+      else
+        _LOG_DEBUG_ID("    don't call app's callback: nothing new");
 
       // We have received a recovery data, we have to wait some
       // time to stabilize a new cd
       if (roundNoOfState >= m_currentRound) {
-        // RecoveryRound is the roundNo received, 
+        // RecoveryRound is the roundNo received,
         // because it is the last round we know there have been produced data
         m_lastRecoveryRound = roundNoOfState;
         // ... and move current to next one, to request new data
@@ -1365,12 +1366,12 @@ Logic::processRecoData(const Name& fullName,
         moveToNewCurrentRoundAfterRecovery(roundNoOfState + 1);
       }
       else {
-        // RecoveryRound is the mcurrentRound -1, 
+        // RecoveryRound is the mcurrentRound -1,
         // because it is the last round we know there have been produced data
         m_lastRecoveryRound = m_currentRound - 1;
       }
 
-      _LOG_DEBUG_ID("    Update lastRecoveryRound = " << m_lastRecoveryRound);  
+      _LOG_DEBUG_ID("    Update lastRecoveryRound = " << m_lastRecoveryRound);
 
       // Proceed to fish in m_currentRound and some previous rounds
       RoundNo initRound;
@@ -1380,7 +1381,7 @@ Logic::processRecoData(const Name& fullName,
           initRound = m_currentRound-BACK_UNSTABLE_ROUNDS;
       }
 
-      _LOG_DEBUG_ID("    BACK unstable rouds -> sendDataInterest from: " << initRound  
+      _LOG_DEBUG_ID("    BACK unstable rouds -> sendDataInterest from: " << initRound
                     << " to: " << m_currentRound);
       for (auto i = initRound; i< m_currentRound; i++){
           EventId eventId =
@@ -1406,7 +1407,7 @@ Logic::processRecoData(const Name& fullName,
       m_stabilizingCumulativeDigest =
       m_scheduler.scheduleEvent(DEFAULT_STABILIZE_CUMULATIVE_DIGEST_DELAY,
 				    bind(&Logic::setStableState, this));
-      
+
   }
 
   catch (State::Error&) {
@@ -1450,7 +1451,7 @@ Logic::printRoundLog()
   _LOG_DEBUG_ID("<< Logic::printRoundLog");
 }
 
- 
+
 
 void
 Logic::updateDiffLog(DiffStatePtr commit, const RoundNo round)
@@ -1502,14 +1503,14 @@ Logic::sendDataInterest(RoundNo roundNo, unsigned retries)
   //  interest.setMustBeFresh(true);
   interest.setMustBeFresh(false);
   interest.setInterestLifetime(m_dataInterestLifetime);
-  
+
 
   // Add exclude filter if stored in round log
   DiffStateContainer::iterator stateIter = m_log.find(roundNo);
   if (stateIter != m_log.end())
     interest.setExclude((*stateIter)->getExcludeFilter());
 
-  
+
   const ndn::PendingInterestId* pid =
     m_face.expressInterest (interest,
                             bind(&Logic::onData, this, _1, _2),
@@ -1537,7 +1538,7 @@ Logic::sendDataInterest(RoundNo roundNo, unsigned retries)
 
   _LOG_DEBUG_ID("<< Logic::sendDataInterest");
 }
-  
+
 
 void
 Logic::sendSyncInterest(RoundNo roundNo)
@@ -1555,18 +1556,18 @@ Logic::sendSyncInterest(RoundNo roundNo)
     .append(SYNC_INTEREST_COMPONENT)
     .append(ndn::name::Component::fromNumber(roundNo));
 
-  // Append round digest 
+  // Append round digest
   DiffStateContainer::iterator stateIter = m_log.find(roundNo);
 
-  if (stateIter != m_log.end()) 
+  if (stateIter != m_log.end())
     interestName.append(ndn::name::Component((*stateIter)->getRoundDigest()));
   else {
     _LOG_DEBUG_ID("    we don't have an entry for that round, so add EMPTY round digest");
     interestName.append(ndn::name::Component(EMPTY_DIGEST));
   }
-  
+
   _LOG_DEBUG_ID("    name: " << interestName);
-  
+
   // Only digest interest for (current_round - 1) is resent periodically
   //if (roundNo == m_currentRound - 1) {
   //  m_outstandingSyncInterestName = interestName;
@@ -1590,7 +1591,7 @@ Logic::sendSyncInterest(RoundNo roundNo)
   m_face.expressInterest(interest, bind(&Logic::onSyncData, this, _1, _2),
                          bind(&Logic::onSyncInterestTimeout, this, _1));
 
-  
+
   _LOG_DEBUG_ID("    Send sync interest PREFIX: " << interest.getName().getPrefix(5));
   _LOG_DEBUG_ID("<< Logic::sendSyncInterest");
 }
@@ -1599,8 +1600,8 @@ Logic::sendSyncInterest(RoundNo roundNo)
 
 
 void
-Logic::sendData(const Name& nodePrefix, 
-                const Name& name,                
+Logic::sendData(const Name& nodePrefix,
+                const Name& name,
                 DiffStatePtr diffState)
 {
   _LOG_DEBUG_ID(">> Logic::sendData");
@@ -1632,9 +1633,9 @@ Logic::sendData(const Name& nodePrefix,
     m_keyChain.sign(*data);
   else
     m_keyChain.signByIdentity(*data, m_defaultSigningId);
-  
+
   // Update exclude filter in commit
-  _LOG_DEBUG_ID("    Update exclude filter with: " << 
+  _LOG_DEBUG_ID("    Update exclude filter with: " <<
                 data->getFullName().get(-1));
   diffState->appendExclude(data->getFullName().get(-1));
 
@@ -1656,8 +1657,8 @@ Logic::sendData(const Name& nodePrefix,
 }
 
 void
-Logic::sendRecoData(const Name& nodePrefix, 
-                    const Name& name)             
+Logic::sendRecoData(const Name& nodePrefix,
+                    const Name& name)
 {
   _LOG_DEBUG_ID(">> Logic::sendRecoData");
   _LOG_DEBUG_ID("    nodePrefix: " << nodePrefix);
@@ -1677,7 +1678,7 @@ Logic::sendRecoData(const Name& nodePrefix,
     m_keyChain.sign(*recoData);
   else
     m_keyChain.signByIdentity(*recoData, m_defaultSigningId);
-  
+
   m_face.put(*recoData);
 
   _LOG_DEBUG_ID("<< Logic::sendRecoData");
@@ -1693,7 +1694,7 @@ Logic::printDigest(ndn::ConstBufferPtr digest, std::string name)
   if (digest){
     std::string hash;
     StringSource(digest->buf(), digest->size(), true,
-                 new HexEncoder(new StringSink(hash), false));    
+                 new HexEncoder(new StringSink(hash), false));
     std::cerr << "  " << name << ": " << hash << std::endl;
   }
   else
